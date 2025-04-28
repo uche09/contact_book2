@@ -1,12 +1,12 @@
 # Contact Book 2
-
+```
    ____ ___  _   _ _____  _    ____ _____   ____   ___   ___  _  ______  
   / ___/ _ \| \ | |_   _|/ \  / ___|_   _| | __ ) / _ \ / _ \| |/ /___ \ 
  | |  | | | |  \| | | | / _ \| |     | |   |  _ \| | | | | | | ' /  __) |
  | |__| |_| | |\  | | |/ ___ \ |___  | |   | |_) | |_| | |_| | . \ / __/ 
   \____\___/|_| \_| |_/_/   \_\____| |_|   |____/ \___/ \___/|_|\_\_____|
                                                                          A Simple Rust CLI Contact Manager
-
+```
 
 [![Rust Version](https://img.shields.io/badge/Rust-1.78+-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 <!-- [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE) -->
