@@ -24,14 +24,15 @@ const STORAGE_FILE_PATH: &str = "./.instance/contact.json";
 
 fn main() {
 
-    println!("\n\nCLI PHONE BOOK\n");
+    println!("\n\n--- Contact BOOK ---\n");
     
 
     loop {
 
+        // Action menu
         println!("\nSelect your action:");
 
-        println!("1. Add a contact \n2. View all contacts \n3. Delete contact by name \n4. Edit existing contact \n5. Search for contact by name \n6. Exit");
+        println!("1. Add a new contact \n2. View all contacts \n3. Delete a contact by name \n4. Edit an existing contact \n5. Search for a contact by name \n6. Exit");
     
         let mut action: String = String::new();
         io::stdin().read_line(&mut action).expect("Input failed");
