@@ -1,10 +1,11 @@
-use chrono::{DateTime, Local, TimeDelta};
+use chrono::{DateTime, Local}; //TimeDelta};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
 use std::{io, process::exit};
+use std::num::ParseIntError;
 
 
 // All structures definition are organized here at the top
@@ -30,34 +31,15 @@ fn main() {
     loop {
 
         // Action menu
-        println!("\nSelect your action:");
-
-        println!("1. Add a new contact \n2. View all contacts \n3. Delete a contact by name \n4. Edit an existing contact \n5. Search for a contact by name \n6. Exit");
-    
-        let mut action: String = String::new();
-        io::stdin().read_line(&mut action).expect("Input failed");
-    
-        let action: u8 = match action.trim().parse() {
-            Ok(num) => num,
-            Err(_) => {
-                println!("\nPlease enter a valid action number.\n");
-                continue;  
-            },
-        };
+        let action = action_menu();
+        if action == 0 {
+            continue; // Invalid input, prompt again
+        }
     
         match action {
             // Add a contact
             1 => {
-                let mut name: String = String::new();
-                let mut phone: String = String::new();
-                let mut email: String = String::new();
-
-                println!("\nContact Name:");
-                io::stdin()
-                    .read_line(&mut name)
-                    .expect("Input failed");
-                
-                let name = name.trim().to_string();
+                let name = get_str_input("Contact Name:");
                 
                 if !validate_name(&name) {
                     println!("\nName must consist of only alphabet and must not be empty\n");
@@ -65,13 +47,7 @@ fn main() {
                 }
 
 
-
-                println!("\nContact Number:");
-                io::stdin()
-                    .read_line(&mut phone)
-                    .expect("Input failed");
-
-                let phone = phone.trim().to_string();
+                let phone = get_str_input("Contact Number:");
 
                 if !validate_number(&phone) {
                     println!("\nNumber must be 10 digits and above. Digits only\n");
@@ -79,12 +55,7 @@ fn main() {
                 }
 
 
-                println!("\nContact Email:");
-                io::stdin()
-                    .read_line(&mut email)
-                    .expect("Input failed");
-
-                let email = email.trim().to_string();
+                let email = get_str_input("Contact Email:");
 
                 if !validate_email(&email) {
                     println!("\nInvalid email address\n");
@@ -92,44 +63,18 @@ fn main() {
                 }
 
 
-                let new_contact = Contact {
-                    name: name,
-                    phone: phone,
-                    email: email,
-                    created_at: Local::now(),
+                let new_contact = 
+                match create_unique_contact(name, phone, email){
+                    Ok(contact) => contact,
+                    Err(err) => {
+                        println!("\nError: {}\n", err);
+                        continue;
+                    },
                 };
-
-                // Check if contact already exist in a contact.
-                let contacts = load_contacts();
-
-                if contacts.iter().find(|cont| cont.phone == new_contact.phone
-                || cont.name == new_contact.name).is_some() {
-                    println!("\nA contact already exist with this name or number. Please check name and number\n");
-                    continue;
-                }
-
 
                 
-                let consent: bool = loop {
-                    println!("\nDo you want to save this contact? \n1. Yes \n2. No");
-
-                    let mut consent: String = String::new();
-                    io::stdin()
-                        .read_line(&mut consent)
-                        .expect("Input failed");
-
-                    let consent: u8 = match consent.trim().parse() {
-                        Ok(num) => num,
-                        Err(_) => {
-                            println!("\nPlease enter a valid action number.");
-                            continue;
-                        },
-                    };
-                    
-                    let mut feedback: bool = true;
-                    if consent == 2 {feedback = false;}
-                    break feedback
-                };
+                let consent: bool = confirm_action("Do you want to save this contact?");
+                 
                 
                 if !consent {println!("\nOperation aborted"); continue;}
 
@@ -152,9 +97,7 @@ fn main() {
                 println!("\n\nYOUR CONTACTS\n");
 
                 for contact in contacts.iter() {
-                    println!("Name {}\nNumber: {}\nEmail: {}\n",
-                    contact.name, contact.phone, contact.email);
-                    println!();
+                    display_contact(contact);
                 }
     
             }
@@ -163,46 +106,18 @@ fn main() {
             3 => {
                 let mut contacts = load_contacts();
 
-                println!("\nEnter Contact name to delete:");
-                let mut rm_contact: String = String::new();
+                let rm_contact: String = get_str_input("Search Contact to delete by name:");
 
-                io::stdin()
-                    .read_line(&mut rm_contact)
-                    .expect("Input failed");
-                
-                rm_contact = rm_contact.trim().to_string();
-
-                let index = match contacts.iter().position(|cont| cont.name == rm_contact) {
+                let index = match get_contact_index_by_name(&rm_contact) {
                     Some(i) => i,
                     None => {println!("\nContact not found\n"); continue;},
                 };
 
-                println!("\nName: {} \nPhone: {} \nEmail: {} \nContact is {} days old",
-                    contacts[index].name, contacts[index].phone, contacts[index].email,
-                    calculate_contact_age(&contacts[index].created_at).num_days());
-
+                println!();
+                display_contact(&contacts[index]);
                 
                 // Confirm Delete
-                let consent: bool = loop {
-                    println!("\nDo you want to DELETE this contact? \n1. Yes \n2. No\n");
-
-                    let mut consent: String = String::new();
-                    io::stdin()
-                        .read_line(&mut consent)
-                        .expect("Input failed");
-
-                    let consent: u8 = match consent.trim().parse() {
-                        Ok(num) => num,
-                        Err(_) => {
-                            println!("\nPlease enter a valid action number.\n");
-                            continue;
-                        },
-                    };
-                    
-                    let mut feedback: bool = false;
-                    if consent == 1 {feedback = true;}
-                    break feedback
-                };
+                let consent: bool = confirm_action("Do you want to DELETE this contact?");
                 
                 if !consent {println!("\nOperation aborted"); continue;}
 
@@ -210,8 +125,10 @@ fn main() {
                 let removed = contacts.remove(index);
                 save_contacts(&contacts);
 
-                println!("{} \n{} \n{} \n^^^^^^^^^ \nContact has been delected from Contact Book\n",
-                    removed.name, removed.phone, removed.email);
+
+                println!();
+                display_contact(&removed);
+                println!("^^^^^^^^^ \nContact has been delected from Contact Book\n");
                 
             }
 
@@ -220,19 +137,12 @@ fn main() {
 
                 let mut contacts = load_contacts();
 
-                println!("\nEnter Contact name to edit:");
-                let mut edt_contact: String = String::new();
-
-                io::stdin()
-                    .read_line(&mut edt_contact)
-                    .expect("Input failed");
-                
-                edt_contact = edt_contact.trim().to_string();
+                let edt_contact: String = get_str_input("Search Contact to edit by name:");
 
 
                 // find the position contact in contact list
 
-                let index = match contacts.iter().position(|cont| cont.name == edt_contact) {
+                let index = match get_contact_index_by_name(&edt_contact) {
                     Some(i) => i,
                     None => {println!("\nContact not found\n"); continue;},
                 };
@@ -240,25 +150,14 @@ fn main() {
 
                 let old_version = &contacts[index];
 
-                println!("\nDO YOU WANT TO EDIT THIS CONTACT?\n");
-                println!("Name {}\nNumber: {}\nEmail: {} \nContact is {} days old\n",
-                    old_version.name, old_version.phone, old_version.email,
-                    calculate_contact_age(&old_version.created_at).num_days());
+                println!("\nYOU ARE ABOUT TO EDIT THIS CONTACT\n");
+                display_contact(old_version);
                     
                 println!("Enter new data for selected contact. \nPress enter to continue with existing data for each");
 
-                // Accept new values
-                let mut name: String = String::new();
-                let mut phone: String = String::new();
-                let mut email: String = String::new();
-
+               
                 // Accept name
-                println!("\nContact Name:");
-                io::stdin()
-                    .read_line(&mut name)
-                    .expect("Input failed");
-                
-                let mut name = name.trim().to_string();
+                let mut name = get_str_input("Contact Name:");
                 
                 if name.is_empty(){
                     name = old_version.name.to_string();
@@ -270,12 +169,7 @@ fn main() {
 
 
                 // Accept phone
-                println!("\nContact Number:");
-                io::stdin()
-                    .read_line(&mut phone)
-                    .expect("Input failed");
-
-                let mut phone = phone.trim().to_string();
+                let mut phone = get_str_input("Contact Number:");
 
                 if phone.is_empty(){
                     phone = old_version.phone.to_string();
@@ -287,12 +181,7 @@ fn main() {
 
 
                 // Accept email
-                println!("\nContact Email:");
-                io::stdin()
-                    .read_line(&mut email)
-                    .expect("Input failed");
-
-                let mut email = email.trim().to_string();
+                let mut email = get_str_input("Contact Email:");
 
                 if email.is_empty(){
                     email = old_version.email.to_string();
@@ -304,38 +193,19 @@ fn main() {
                 
 
                 // Edited version
-                let new_version = Contact{
-                    name: name,
-                    phone: phone,
-                    email: email,
+                let new_version = Contact { 
+                    name: name, 
+                    phone: phone, 
+                    email: email, 
                     created_at: old_version.created_at,
                 };
 
+                let prompt = format!("Do you want to save CHANGES ON this contact FROM \n\"{}\" \n\n \tTO \n\n\"{}\"",
+                                            display_contact(old_version), display_contact(&new_version));
 
-                // Confirm Edit
-                let consent: bool = loop {
-                    println!("\nDo you want to save CHANGES ON this contact? \n{} => {} \n{} => {} \n{} => {}",
-                        old_version.name, new_version.name, old_version.phone, new_version.phone, old_version.email, new_version.email);
-
-                    println!("1. Yes \n2. No\n");
-
-                    let mut consent: String = String::new();
-                    io::stdin()
-                        .read_line(&mut consent)
-                        .expect("Input failed");
-
-                    let consent: u8 = match consent.trim().parse() {
-                        Ok(num) => num,
-                        Err(_) => {
-                            println!("\nPlease enter a valid action number.\n");
-                            continue;
-                        },
-                    };
-                    
-                    let mut feedback: bool = false;
-                    if consent == 1 {feedback = true;}
-                    break feedback
-                };
+                println!();
+                // Confirm action                            
+                let consent: bool = confirm_action(&prompt);
                 
                 if !consent {println!("\nOperation aborted"); continue;}
 
@@ -350,24 +220,21 @@ fn main() {
             // Search contact by name
             5 => {
                 let contacts = load_contacts();
+                if contacts.is_empty() {
+                    println!("\nYou do not have any contact\n");
+                    continue;
+                }
 
-                println!("\nEnter Contact name to search:");
-                let mut name: String = String::new();
+                let name: String = get_str_input("Enter Contact name to search:");
 
-                io::stdin()
-                    .read_line(&mut name)
-                    .expect("Input failed");
-                
-                name = name.trim().to_string();
-
-                let index = match contacts.iter().position(|cont| cont.name == name) {
+                let index = match get_contact_index_by_name(&name) {
                     Some(i) => i,
                     None => {println!("\nContact not found\n"); continue;},
                 };
 
                 let contact = &contacts[index];
-                println!("\n{} \n{} \n{} \nContact is {} days old", 
-                    contact.name, contact.phone, contact.email, calculate_contact_age(&contact.created_at).num_days())
+                println!();
+                display_contact(contact);
             }
     
             6 => {
@@ -384,6 +251,9 @@ fn main() {
     }
 
 }
+
+
+
 
 
 
@@ -454,6 +324,113 @@ fn validate_email(email: &String) -> bool {
     re.is_match(&email)
 }
 
-fn calculate_contact_age(datetime: &DateTime<Local>) -> TimeDelta {
-    Local::now() - datetime 
+// fn calculate_contact_age(datetime: &DateTime<Local>) -> TimeDelta {
+//     Local::now() - datetime 
+// }
+
+
+fn create_unique_contact(name: String, phone: String, email: String) -> Result<Contact, String> {
+    // Creates a new unique contact
+    let new_contact: Contact = Contact {
+        name: name,
+        phone: phone,
+        email: email,
+        created_at: Local::now(),
+    };
+
+    if contact_exist(&new_contact) {
+        return Err("Contact with this name or number already exists".to_string());
+    }
+    
+    Ok(new_contact)
+
+}
+
+
+fn contact_exist(contact: &Contact) -> bool {
+    // Checks if contact name or contact number already exist
+    let contacts = load_contacts();
+
+    contacts.iter().find(|cont| cont.phone == contact.phone
+    || cont.name == contact.name).is_some()
+    
+}
+
+
+fn get_contact_index_by_name(name: &String) -> Option<usize> {
+    // Returns a contact index in contact book
+    let contacts = load_contacts();
+
+    let index = contacts.iter().position(|cont| &cont.name == name);
+    index
+}
+
+
+
+
+// I/O FUNCTIONS
+
+fn get_str_input(prompt: &str) -> String {
+    println!("\n{} ", prompt);
+    let mut value: String = String::new();
+
+    io::stdin()
+        .read_line(&mut value)
+        .expect("Input failed");
+                
+    let value = value.trim().to_string();
+    value
+}
+
+
+fn get_u8_input() -> Result<u8, ParseIntError> {
+    let mut value: String = String::new();
+    io::stdin()
+        .read_line(&mut value)
+        .expect("Input failed");
+
+    value.trim().parse::<u8>()
+}
+
+
+fn action_menu() -> u8 {
+    println!("\nSelect your action:");
+    println!("1. Add a new contact \n2. View all contacts \n3. Delete a contact by name \n4. Edit an existing contact \n5. Search for a contact by name \n6. Exit\n");
+
+    let action: u8 = match get_u8_input() {
+        Ok(num) => num,
+        Err(_) => {
+            println!("\nPlease enter a valid action number.\n");
+            0
+        },
+    };
+
+    action
+}
+
+fn confirm_action(prompt: &str) -> bool {
+    loop {
+        println!("\n{} \n1. Yes \n2. No\n", prompt);
+
+        let consent: u8 = match get_u8_input() {
+            Ok(num) => num,
+            Err(_) => {
+                println!("\nPlease enter a valid action number.");
+                continue;
+            },
+        };
+        
+        let mut feedback: bool = false;
+        if consent == 1 {feedback = true;}
+        return feedback;
+    }
+}
+
+fn display_contact(contact: &Contact) -> String {
+    let output = format!("Name {}\nNumber: {}\nEmail: {}\
+    \nCreated on {}",
+        contact.name, contact.phone, contact.email, contact.created_at.format("%Y-%m-%d"));
+
+    println!("{}\n", output);
+    output
 }

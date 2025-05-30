@@ -15,7 +15,7 @@
 ---
 
 ## Features
-- Add a new contact with name and phone number
+- Add a new contact with name, phone number and email
 - View all saved contacts
 - Search for a contact by name
 - Delete a contact by name
